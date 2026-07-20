@@ -1,0 +1,31 @@
+name: Keep Supabase awake
+
+# Supabase pauses free-tier projects after 7 days with no database activity.
+# This runs a trivial read against the REST API every 3 days — well inside
+# that window — so the project never goes quiet long enough to pause.
+# Runs on GitHub's servers on a schedule, independent of any local machine
+# or app being open.
+
+on:
+  schedule:
+    - cron: "0 6 */3 * *" # every 3rd day at 06:00 UTC
+  workflow_dispatch: {} # lets you trigger it manually from the Actions tab
+
+jobs:
+  ping-supabase:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Query approved salons (RLS-public, no auth needed)
+        run: |
+          http_status=$(curl -s -o /tmp/response.json -w "%{http_code}" \
+            "${SUPABASE_URL}/rest/v1/salons?select=id&status=eq.approved&limit=1" \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}")
+          cat /tmp/response.json
+          if [ "$http_status" -ge 300 ]; then
+            echo "Supabase ping failed with HTTP $http_status"
+            exit 1
+          fi
+        env:
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}

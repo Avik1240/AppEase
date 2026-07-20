@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState, useTransition } from "react";
 import {
   DAY_NAMES,
@@ -80,11 +81,12 @@ export default function SalonReviewCard({
       {salon.photos.length > 0 && (
         <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
           {salon.photos.map((url) => (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
+            <Image
               key={url}
               src={url}
               alt="Salon photo"
+              width={144}
+              height={96}
               className="h-24 w-36 flex-shrink-0 rounded-lg object-cover"
             />
           ))}

@@ -1,20 +1,19 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { getSessionIdentity } from "@/lib/supabase/session";
 import LogoutButton from "@/components/LogoutButton";
 import CustomerBookings, { type CustomerBookingRow } from "./CustomerBookings";
 
 export default async function CustomerBookingsPage() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const identity = await getSessionIdentity();
 
   const { data: bookings } = await supabase
     .from("bookings")
     .select(
       "id, salon_id, service_id, stylist_id, booking_date, start_time, end_time, price, status, salons(name, address), services(name), stylists(name)"
     )
-    .eq("customer_id", user!.id)
+    .eq("customer_id", identity!.id)
     .order("booking_date", { ascending: false })
     .order("start_time", { ascending: false })
     .returns<CustomerBookingRow[]>();

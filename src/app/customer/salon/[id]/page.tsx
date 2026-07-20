@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import Parallax from "@/components/Parallax";
@@ -38,11 +39,13 @@ export default async function SalonDetailPage({ params }: Props) {
       <div className="relative h-56 overflow-hidden sm:h-72">
         <Parallax speed={0.5} className="absolute inset-0 -bottom-16">
           {salon.photos[0] ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
+            <Image
               src={salon.photos[0]}
               alt={salon.name}
-              className="h-[120%] w-full object-cover opacity-70"
+              fill
+              priority
+              sizes="100vw"
+              className="object-cover opacity-70"
             />
           ) : (
             <div className="placeholder-photo h-[120%] w-full" />
@@ -94,11 +97,12 @@ export default async function SalonDetailPage({ params }: Props) {
         {salon.photos.length > 1 && (
           <section className="reveal reveal-1 mt-6 flex gap-3 overflow-x-auto pb-2">
             {salon.photos.slice(1).map((url) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
+              <Image
                 key={url}
                 src={url}
                 alt={salon.name}
+                width={240}
+                height={160}
                 className="h-40 w-60 flex-shrink-0 rounded-2xl object-cover"
               />
             ))}

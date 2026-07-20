@@ -1,4 +1,6 @@
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
+import { getSessionIdentity } from "@/lib/supabase/session";
 import LogoutButton from "@/components/LogoutButton";
 import OnboardingForm from "./OnboardingForm";
 import BookingsPanel, { type BookingRow } from "./BookingsPanel";
@@ -18,20 +20,13 @@ const STATUS_STYLES: Record<string, string> = {
 
 export default async function SalonHome() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("full_name")
-    .eq("id", user!.id)
-    .single();
+  const identity = await getSessionIdentity();
+  const userId = identity!.id;
 
   const { data: salon } = await supabase
     .from("salons")
     .select("*")
-    .eq("owner_id", user!.id)
+    .eq("owner_id", userId)
     .maybeSingle<Salon>();
 
   if (!salon) {
@@ -49,7 +44,7 @@ export default async function SalonHome() {
           <LogoutButton />
         </header>
         <div className="mt-8">
-          <OnboardingForm userId={user!.id} />
+          <OnboardingForm userId={userId} />
         </div>
       </main>
     );
@@ -77,7 +72,7 @@ export default async function SalonHome() {
             {salon.name}
           </h1>
           <p className="mt-1 text-sm text-smoke">
-            Owner: {profile?.full_name} · {salon.address}
+            Owner: {identity?.fullName} · {salon.address}
           </p>
         </div>
         <LogoutButton />
@@ -96,11 +91,12 @@ export default async function SalonHome() {
       {salon.photos.length > 0 && (
         <section className="mt-6 flex gap-3 overflow-x-auto pb-2">
           {salon.photos.map((url) => (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
+            <Image
               key={url}
               src={url}
               alt="Salon photo"
+              width={192}
+              height={128}
               className="h-32 w-48 flex-shrink-0 rounded-xl object-cover"
             />
           ))}

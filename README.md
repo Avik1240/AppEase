@@ -82,6 +82,22 @@ Also fixed in this pass (no migration needed, code-only):
   `npm test` (Vitest) covering closed days, partial-fit durations, overlap
   detection, and the "today" time cutoff.
 
+## Keeping the free Supabase project awake
+
+Supabase pauses free-tier projects after 7 days with no database activity.
+`.github/workflows/keep-supabase-alive.yml` runs a trivial read against the
+REST API every 3 days via GitHub Actions (server-side, independent of any
+local machine) to keep it under that threshold. It needs two repo secrets —
+GitHub repo → Settings → Secrets and variables → Actions → New repository
+secret:
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+
+(same values as `.env.local` / your Vercel env vars). You can also trigger
+it manually any time from the repo's Actions tab → "Keep Supabase awake" →
+Run workflow.
+
 ## Testing
 
 `npm test` runs the Vitest suite (currently: `src/lib/slots.ts`, the pure

@@ -1,5 +1,7 @@
 import Link from "next/link";
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
+import { getSessionIdentity } from "@/lib/supabase/session";
 import LogoutButton from "@/components/LogoutButton";
 import Spotlight from "@/components/Spotlight";
 import { SERVICE_CATEGORIES, type Salon, type Service } from "@/lib/types";
@@ -21,15 +23,7 @@ function escapePostgrestLiteral(value: string): string {
 export default async function CustomerHome({ searchParams }: Props) {
   const { q = "", category = "" } = await searchParams;
   const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("full_name")
-    .eq("id", user!.id)
-    .single();
+  const identity = await getSessionIdentity();
 
   let query = supabase
     .from("salons")
@@ -83,7 +77,7 @@ export default async function CustomerHome({ searchParams }: Props) {
             <h1 className="font-display text-2xl font-semibold sm:text-3xl">
               Find a salon
             </h1>
-            <p className="mt-1 text-sm text-smoke">Hi, {profile?.full_name}</p>
+            <p className="mt-1 text-sm text-smoke">Hi, {identity?.fullName}</p>
           </div>
           <div className="flex items-center gap-2">
             <Link href="/customer/bookings" className="btn-ghost text-sm">
@@ -137,12 +131,15 @@ export default async function CustomerHome({ searchParams }: Props) {
               className="card lift group overflow-hidden"
             >
               {salon.photos[0] ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={salon.photos[0]}
-                  alt={salon.name}
-                  className="h-40 w-full object-cover"
-                />
+                <div className="relative h-40 w-full overflow-hidden">
+                  <Image
+                    src={salon.photos[0]}
+                    alt={salon.name}
+                    fill
+                    sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+                    className="object-cover"
+                  />
+                </div>
               ) : (
                 <div className="placeholder-photo flex h-40 w-full items-end p-4">
                   <span className="font-display text-2xl text-ivory/30">

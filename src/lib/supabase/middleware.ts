@@ -18,7 +18,11 @@ const PROTECTED_PREFIXES: { prefix: string; role: Role }[] = [
 ];
 
 export async function updateSession(request: NextRequest) {
-  let response = NextResponse.next({ request });
+  // Cookies that Supabase wants to (re)set (e.g. token refresh) are recorded
+  // here and applied to whichever response we actually return at the end,
+  // instead of rebuilding `response` mid-flight — that made it easy to lose
+  // headers we attach later for downstream Server Components.
+  let pendingCookies: CookieToSet[] = [];
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -32,14 +36,18 @@ export async function updateSession(request: NextRequest) {
           cookiesToSet.forEach(({ name, value }: CookieToSet) =>
             request.cookies.set(name, value)
           );
-          response = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }: CookieToSet) =>
-            response.cookies.set(name, value, options)
-          );
+          pendingCookies = pendingCookies.concat(cookiesToSet);
         },
       },
     }
   );
+
+  function withCookies(response: NextResponse): NextResponse {
+    for (const { name, value, options } of pendingCookies) {
+      response.cookies.set(name, value, options);
+    }
+    return response;
+  }
 
   const {
     data: { user },
@@ -55,23 +63,27 @@ export async function updateSession(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("next", path);
-    return NextResponse.redirect(url);
+    return withCookies(NextResponse.redirect(url));
   }
+
+  let role: Role = "customer";
+  let fullName = "";
 
   if (user) {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role")
+      .select("role, full_name")
       .eq("id", user.id)
       .single();
-    const role = (profile?.role ?? "customer") as Role;
+    role = (profile?.role ?? "customer") as Role;
+    fullName = profile?.full_name ?? "";
 
     // Wrong-role access → send to own home
     if (guard && guard.role !== role) {
       const url = request.nextUrl.clone();
       url.pathname = ROLE_HOME[role];
       url.search = "";
-      return NextResponse.redirect(url);
+      return withCookies(NextResponse.redirect(url));
     }
 
     // Logged-in user on auth pages → own home
@@ -79,9 +91,26 @@ export async function updateSession(request: NextRequest) {
       const url = request.nextUrl.clone();
       url.pathname = ROLE_HOME[role];
       url.search = "";
-      return NextResponse.redirect(url);
+      return withCookies(NextResponse.redirect(url));
     }
   }
 
-  return response;
+  // Forward the identity we just verified to Server Components downstream,
+  // via request headers (the only way middleware can pass data into the
+  // page render for the same request). This is us setting headers on the
+  // *outgoing* request server-side, after auth — not client input, so pages
+  // reading x-user-id/x-user-role/x-user-name can trust it without redoing
+  // the getUser() + profiles round trip that was happening on every page.
+  const requestHeaders = new Headers(request.headers);
+  if (user) {
+    requestHeaders.set("x-user-id", user.id);
+    requestHeaders.set("x-user-role", role);
+    requestHeaders.set("x-user-name", encodeURIComponent(fullName));
+  } else {
+    requestHeaders.delete("x-user-id");
+    requestHeaders.delete("x-user-role");
+    requestHeaders.delete("x-user-name");
+  }
+
+  return withCookies(NextResponse.next({ request: { headers: requestHeaders } }));
 }
