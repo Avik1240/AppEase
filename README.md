@@ -46,10 +46,61 @@ Sign up normally, then in SQL Editor:
 3. `supabase/m3_admin.sql` — admin profile access
 4. `supabase/m5_bookings.sql` — bookings + no-double-booking constraint
 5. `supabase/m6_realtime.sql` — realtime publication
+6. `supabase/m7_hardening.sql` — **required before going live.** Locks booking
+   status transitions at the DB level (not just app code), caps salon photos
+   at 5 server-side, and restricts the `salon-photos` bucket to real image
+   types under 5MB. See "Prod hardening" below for what this closes.
+
+## Prod hardening (M7)
+
+Before this migration, business rules like "a booking can only go
+confirmed → completed/cancelled/no_show" were enforced only in the Next.js
+server actions — anyone calling the Supabase REST/JS API directly (a salon
+owner's browser devtools, a leaked anon key, a bug) could set a booking to
+any status from any prior status, or upload unlimited/oversized files to
+the photos bucket. `m7_hardening.sql` adds:
+
+- A `before update` trigger on `bookings` that rejects any status
+  transition other than `confirmed → {completed, cancelled, no_show}`,
+  enforced regardless of which RLS policy matched the caller.
+- A check constraint capping `salons.photos` at 5 entries.
+- A 5MB / image-only file limit on the `salon-photos` storage bucket.
+
+Also fixed in this pass (no migration needed, code-only):
+
+- Salon search (`/customer`) previously built a raw PostgREST filter string
+  from the search box — a comma or parenthesis in the query could inject
+  extra filter clauses. Input is now escaped and length-capped.
+- Rescheduling a booking used to cancel the original slot *before*
+  confirming the new one — abandoning the flow lost the booking with
+  nothing to fall back on. It now cancels the old booking only after the
+  new one is successfully created.
+- `npm run lint` had no ESLint config or dependency behind it at all (would
+  fail/prompt on first run). Added `eslint.config.mjs` + `eslint-config-next`.
+- `src/lib/slots.ts` (the core double-booking/availability math) had zero
+  tests despite being pure and self-described as unit-testable. Added
+  `npm test` (Vitest) covering closed days, partial-fit durations, overlap
+  detection, and the "today" time cutoff.
+
+## Testing
+
+`npm test` runs the Vitest suite (currently: `src/lib/slots.ts`, the pure
+slot-availability logic every booking depends on). Run this — and
+`npx tsc --noEmit` — before every deploy.
 
 ## Deploy (Vercel free tier)
 
-1. Push this folder to a GitHub repo
-2. vercel.com → Add New Project → import the repo (Next.js auto-detected)
-3. Environment variables: add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` (same values as `.env.local`)
-4. Deploy → public URL live
+1. Run all SQL migrations above **in order, including `m7_hardening.sql`**.
+2. Supabase Dashboard → Authentication → Providers → Email → disable
+   "Confirm email" (v1 uses instant signup).
+3. Push this folder to a GitHub repo.
+4. vercel.com → Add New Project → import the repo (Next.js auto-detected).
+5. Environment variables: add `NEXT_PUBLIC_SUPABASE_URL` and
+   `NEXT_PUBLIC_SUPABASE_ANON_KEY` (same values as `.env.local`).
+6. Locally, before deploying: `npm run lint && npx tsc --noEmit && npm test
+   && npm run build` — confirm all four pass clean.
+7. Deploy → public URL live.
+8. Bootstrap the first admin: sign up normally through the app (any role),
+   then in SQL Editor: `update public.profiles set role = 'admin' where id
+   = 'USER_UUID';`. Nothing in the admin queue is reachable until this is
+   done at least once.

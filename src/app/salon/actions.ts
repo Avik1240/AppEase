@@ -12,6 +12,7 @@ function validate(p: OnboardingPayload): string | null {
   if (p.hours.length === 0) return "Set opening hours for at least one day.";
   if (p.stylists.length === 0) return "Add at least one stylist.";
   if (p.services.length === 0) return "Add at least one service.";
+  if (p.photos.length > 5) return "Maximum 5 photos.";
   for (const h of p.hours) {
     if (h.open_time >= h.close_time)
       return "Closing time must be after opening time.";

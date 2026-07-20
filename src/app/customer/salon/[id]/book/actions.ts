@@ -38,6 +38,7 @@ export async function createBooking(input: {
   serviceId: string;
   date: string; // "YYYY-MM-DD"
   start: string; // "HH:MM"
+  rescheduleBookingId?: string; // old booking to cancel once the new one lands
 }): Promise<CreateBookingResult> {
   const supabase = await createClient();
   const {
@@ -121,6 +122,19 @@ export async function createBooking(input: {
     if (error.code === "23P01")
       return { ok: false, error: "That slot was just booked by someone else." };
     return { ok: false, error: error.message };
+  }
+
+  // Reschedule: only cancel the old booking now that the new one is safely
+  // in. Best-effort — if this fails (e.g. it was already cancelled, or
+  // belongs to someone else), the new booking still stands; we don't want
+  // a customer to lose a confirmed slot over a cleanup step.
+  if (input.rescheduleBookingId) {
+    await supabase
+      .from("bookings")
+      .update({ status: "cancelled" })
+      .eq("id", input.rescheduleBookingId)
+      .eq("customer_id", user.id)
+      .eq("status", "confirmed");
   }
 
   return { ok: true };

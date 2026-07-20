@@ -19,6 +19,7 @@ type Props = {
   hours: SalonHour[];
   preService?: string;
   preStylist?: string;
+  rescheduleId?: string;
 };
 
 function fmtDate(d: Date): string {
@@ -35,6 +36,7 @@ export default function BookingClient({
   hours,
   preService,
   preStylist,
+  rescheduleId,
 }: Props) {
   const router = useRouter();
   const [serviceId, setServiceId] = useState(
@@ -111,6 +113,7 @@ export default function BookingClient({
       serviceId,
       date,
       start: selectedSlot,
+      rescheduleBookingId: rescheduleId,
     });
     setSubmitting(false);
     if (!r.ok) {

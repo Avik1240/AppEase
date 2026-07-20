@@ -110,19 +110,14 @@ export default function CustomerBookings({
   }
 
   function handleReschedule(b: CustomerBookingRow) {
-    if (!confirm("Reschedule cancels this booking and lets you pick a new slot. Continue?"))
-      return;
-    setError("");
-    startTransition(async () => {
-      const r = await cancelBooking(b.id);
-      if (!r.ok) {
-        setError(r.error);
-        return;
-      }
-      router.push(
-        `/customer/salon/${b.salon_id}/book?service=${b.service_id}&stylist=${b.stylist_id}`
-      );
-    });
+    // Do NOT cancel the existing booking here. If the customer picks a new
+    // slot and confirms, the booking server action cancels this one only
+    // after the new booking is successfully created — so abandoning the
+    // reschedule flow (closing the tab, going back) leaves the original
+    // booking intact instead of silently losing the slot.
+    router.push(
+      `/customer/salon/${b.salon_id}/book?service=${b.service_id}&stylist=${b.stylist_id}&reschedule=${b.id}`
+    );
   }
 
   return (

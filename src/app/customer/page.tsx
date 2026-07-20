@@ -8,6 +8,16 @@ type Props = {
   searchParams: Promise<{ q?: string; category?: string }>;
 };
 
+// PostgREST's `.or()` filter string treats `,` `(` `)` as syntax, not literal
+// characters. Wrapping the value in double quotes makes it a literal string —
+// but the value itself can then never contain an unescaped `"` or `\`, so
+// those must be backslash-escaped first. Without this, a search like
+// "a,b" would silently be parsed as two separate filter conditions instead
+// of a literal search string, and could be used to inject extra clauses.
+function escapePostgrestLiteral(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
 export default async function CustomerHome({ searchParams }: Props) {
   const { q = "", category = "" } = await searchParams;
   const supabase = await createClient();
@@ -27,8 +37,10 @@ export default async function CustomerHome({ searchParams }: Props) {
     .eq("status", "approved")
     .order("created_at", { ascending: false });
 
-  if (q.trim()) {
-    query = query.or(`name.ilike.%${q.trim()}%,address.ilike.%${q.trim()}%`);
+  const searchTerm = q.trim().slice(0, 100);
+  if (searchTerm) {
+    const safe = escapePostgrestLiteral(searchTerm);
+    query = query.or(`name.ilike."%${safe}%",address.ilike."%${safe}%"`);
   }
 
   let { data: salons } = await query.returns<Salon[]>();

@@ -6,12 +6,12 @@ import BookingClient from "./BookingClient";
 
 type Props = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ service?: string; stylist?: string }>;
+  searchParams: Promise<{ service?: string; stylist?: string; reschedule?: string }>;
 };
 
 export default async function BookPage({ params, searchParams }: Props) {
   const { id } = await params;
-  const { service: preService, stylist: preStylist } = await searchParams;
+  const { service: preService, stylist: preStylist, reschedule } = await searchParams;
   const supabase = await createClient();
 
   const { data: salon } = await supabase
@@ -49,6 +49,7 @@ export default async function BookPage({ params, searchParams }: Props) {
           hours={hours ?? []}
           preService={preService}
           preStylist={preStylist}
+          rescheduleId={reschedule}
         />
       </div>
     </main>
